@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Solana Meme Finder – Social Sentiment Added</title>
+  <title>Solana Meme Finder – Fixed & Complete</title>
   <style>
     :root {
       --bg: #0f0f17; --text: #e0e0ff; --accent: #00ff88; --link: #00ddff;
@@ -11,7 +11,7 @@
       --buy: #004d00; --sell: #4d0000; --rug: #660000;
       --tooltip-bg: #1e1e3a; --tooltip-text: #e0e0ff;
       --risk-low: #28a745; --risk-med: #ffc107; --risk-high: #dc3545;
-      --balance: #88ffaa; --value: #ffcc00; --sentiment-bull: #00cc66; --sentiment-bear: #ff4444;
+      --balance: #88ffaa; --value: #ffcc00;
     }
     body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 1rem; min-height: 100vh; }
     header { text-align: center; margin-bottom: 1.2rem; }
@@ -30,7 +30,7 @@
     #error { color: #ff5555; }
     #status { color: #ffcc00; }
     .table-container { overflow-x: auto; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
-    table { width: 100%; border-collapse: collapse; background: var(--table-bg); min-width: 1600px; }
+    table { width: 100%; border-collapse: collapse; background: var(--table-bg); min-width: 1400px; }
     th, td { padding: 9px 7px; text-align: center; border: 1px solid var(--border); font-size: 0.82rem; position: relative; }
     th { background: var(--th-bg); color: #88ccff; position: sticky; top: 0; z-index: 1; cursor: pointer; user-select: none; }
     th.sortable:hover { background: #333366; }
@@ -45,13 +45,10 @@
       padding: 6px 10px; border-radius: 6px; font-size: 0.78rem; white-space: nowrap;
       z-index: 10; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.6); margin-bottom: 8px;
     }
-    .risk-badge, .sentiment-badge { padding: 4px 8px; border-radius: 12px; font-weight: bold; font-size: 0.75rem; }
+    .risk-badge { padding: 4px 8px; border-radius: 12px; font-weight: bold; font-size: 0.75rem; }
     .risk-low  { background: var(--risk-low);  color: white; }
     .risk-med  { background: var(--risk-med);  color: black; }
     .risk-high { background: var(--risk-high); color: white; }
-    .sentiment-bull { background: var(--sentiment-bull); color: white; }
-    .sentiment-neutral { background: #666699; color: white; }
-    .sentiment-bear { background: var(--sentiment-bear); color: white; }
     tr.buy-zone   { background: var(--buy); }
     tr.sell-zone  { background: var(--sell); }
     tr.rug-risk   { background: var(--rug); }
@@ -64,7 +61,7 @@
     @media (max-width: 768px) {
       body { padding: 0.5rem; }
       th, td { padding: 7px 5px; font-size: 0.76rem; }
-      table { min-width: 1400px; }
+      table { min-width: 1300px; }
       .action-cell { flex-direction: column; gap: 0.3rem; }
     }
   </style>
@@ -72,9 +69,9 @@
 <body>
 
   <header>
-    <h1>Solana Meme Finder – Best + Sentiment</h1>
+    <h1>Solana Meme Finder – Best Coins Only</h1>
     <p class="intro">
-      Top momentum + strong social buzz coins only • No duplicates • Direct Phantom buy/sell • Balance & Value USD • Rug risk • 10s refresh
+      Top momentum + safety coins • No duplicates • Direct Phantom buy/sell • Balance & Value USD • Rug risk • 10s refresh
     </p>
   </header>
 
@@ -112,7 +109,6 @@
           <th>Alert</th>
           <th class="sortable" data-key="boost"     data-type="number" data-tooltip="Boost amount">Boost</th>
           <th>Rug Risk</th>
-          <th>Social Sentiment</th>
           <th class="sortable" data-key="balance"   data-type="number" data-tooltip="Your current token balance">Balance</th>
           <th class="sortable" data-key="valueUsd"  data-type="number" data-tooltip="Your holdings value in USD">Value USD</th>
           <th>Buy / Sell</th>
@@ -126,7 +122,7 @@
   <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
   <script>
     // =============================================================================
-    // CONFIG – tunable parameters
+    // CONFIG
     // =============================================================================
 
     const CONFIG = {
@@ -140,7 +136,7 @@
     };
 
     // =============================================================================
-    // DOM CACHE
+    // DOM REFERENCES
     // =============================================================================
 
     const DOM = {
@@ -188,7 +184,7 @@
 
     async function connectWallet() {
       if (!window.solana?.isPhantom) {
-        alert('Phantom wallet not detected. Please install it.');
+        alert('Please install Phantom wallet');
         return;
       }
       try {
@@ -217,128 +213,31 @@
     }
 
     // =============================================================================
-    // TRADING FUNCTIONS
+    // DATA FETCHING
     // =============================================================================
 
-    async function executeSwap(inputMint, outputMint, amountRaw, isBuy = true) {
-      if (!walletAddress) return alert('Connect Phantom first');
-
-      const action = isBuy ? 'Buy' : 'Sell';
-      const unit = isBuy ? 'SOL' : 'tokens';
-      DOM.status.textContent = `Preparing ${action}: ${amountRaw} ${unit}...`;
-
+    async function fetchBoostedTokens() {
       try {
-        const quoteUrl = `https://quote-api.jup.ag/v6/quote?` + new URLSearchParams({
-          inputMint,
-          outputMint,
-          amount: Math.floor(amountRaw),
-          slippageBps: '50'
-        });
-
-        const quoteRes = await fetch(quoteUrl);
-        if (!quoteRes.ok) throw new Error('Quote failed');
-        const quote = await quoteRes.json();
-
-        const swapRes = await fetch('https://quote-api.jup.ag/v6/swap', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            quoteResponse: quote,
-            userPublicKey: walletAddress,
-            wrapAndUnwrapSol: true,
-            computeUnitPriceMicroLamports: 100000
-          })
-        });
-
-        if (!swapRes.ok) throw new Error('Swap tx failed');
-        const { swapTransaction } = await swapRes.json();
-
-        const txBuf = Buffer.from(swapTransaction, 'base64');
-        const tx = solanaWeb3.Transaction.from(txBuf);
-
-        const { signature } = await window.solana.signAndSendTransaction(tx, { skipPreflight: false });
-
-        alert(`${action} sent!\nTx: https://solscan.io/tx/${signature}`);
-        DOM.status.textContent = `${action} submitted – check Phantom`;
-        await loadData();
+        const data = await fetchJson(CONFIG.BOOST_URL);
+        return data.filter(b => b.chainId === 'solana').slice(0, 50);
       } catch (err) {
-        DOM.error.textContent = `${action} failed: ${err.message}`;
-        console.error(err);
+        DOM.error.textContent = 'Failed to load boosted list – retry later';
+        return [];
       }
     }
 
-    window.buyToken = (mint, amountSol) => {
-      amountSol = parseFloat(amountSol);
-      if (isNaN(amountSol) || amountSol <= 0) return alert('Enter valid amount > 0');
-      executeSwap(CONFIG.SOL_MINT, mint, amountSol * 1e9, true);
-    };
-
-    window.sellToken = async (mint, value) => {
-      const balance = await getTokenBalance(mint);
-      if (balance <= 0) return alert('No balance to sell');
-
-      let amount;
-      if (typeof value === 'number' && value <= 100) {
-        amount = balance * (value / 100);
-      } else {
-        amount = parseFloat(value);
-        if (isNaN(amount) || amount <= 0 || amount > balance) return alert('Invalid amount');
+    async function fetchPair(tokenAddress) {
+      try {
+        const res = await fetchJson(`https://api.dexscreener.com/latest/dex/tokens/${tokenAddress}`);
+        return res.pairs?.[0] || null;
+      } catch {
+        return null;
       }
-
-      if (!confirm(`Sell ${amount.toFixed(2)} tokens (${((amount / balance) * 100).toFixed(1)}%)?`)) return;
-
-      executeSwap(mint, CONFIG.SOL_MINT, amount * 1e6, false);
-    };
-
-    // =============================================================================
-    // SENTIMENT HELPERS (proxy via search – no API key)
-    // =============================================================================
-
-    function estimateSentiment(row) {
-      // Placeholder – in real production use LunarCrush / Santiment / Birdeye API
-      // Here we simulate based on available data + common patterns
-      const m5Vol = cleanNumber(row.m5vol);
-      const m5Chg = cleanNumber(row.m5chg);
-      const boost = cleanNumber(row.boost);
-
-      // Rough heuristic (improve with real API later)
-      let score = 50;
-      if (m5Chg > 15) score += 25;
-      if (m5Vol > 50000) score += 20;
-      if (boost > 1000) score += 15;
-      if (m5.sells > m5.buys * 1.5) score -= 30;
-
-      score = Math.max(0, Math.min(100, score));
-
-      let label = 'Neutral', cls = 'sentiment-neutral';
-      if (score >= 70) { label = 'Bullish'; cls = 'sentiment-bull'; }
-      if (score <= 30) { label = 'Bearish'; cls = 'sentiment-bear'; }
-
-      return { label, score, cls };
     }
 
     // =============================================================================
-    // CORE DATA PROCESSING
+    // ROW BUILDING & SCORING
     // =============================================================================
-
-    function calculateScore(row) {
-      const m5Chg = cleanNumber(row.m5chg);
-      const m5Vol = cleanNumber(row.m5vol);
-      const buys = row.m5buys || 0;
-      const sells = row.m5sells || 0;
-      const liqRatio = cleanNumber(row.liq) / cleanNumber(row.fdv);
-      const boost = cleanNumber(row.boost);
-
-      const sentiment = estimateSentiment(row).score / 100;
-
-      const momentum = (m5Chg > 0 ? m5Chg : 0) * 0.35 + (m5Vol / 10000) * 0.25;
-      const pressure = (buys / (sells + 1)) * 0.7;
-      const safety = Math.min(liqRatio * 20, 1) * 0.4;
-      const boostBonus = Math.min(boost / 1000, 3) * 0.3;
-      const socialBonus = sentiment * 0.6;
-
-      return momentum + pressure + safety + boostBonus + socialBonus;
-    }
 
     async function buildRow(pair, boost) {
       if (!pair || cleanNumber(pair.liquidity?.usd) < CONFIG.MIN_LIQUIDITY) return null;
@@ -414,35 +313,9 @@
         jup: `https://jup.ag/swap/${CONFIG.SOL_MINT}-${boost.tokenAddress}`
       };
 
-      const sentiment = estimateSentiment(row);
-      row.sentimentLabel = sentiment.label;
-      row.sentimentScore = sentiment.score;
-      row.sentimentClass = sentiment.cls;
-
       row.score = calculateScore(row);
 
       return row;
-    }
-
-    function estimateSentiment(row) {
-      // Simulated – in real use → LunarCrush / Birdeye / DexScreener social volume
-      const m5Vol = cleanNumber(row.m5vol);
-      const m5Chg = cleanNumber(row.m5chg);
-      const boost = cleanNumber(row.boost);
-
-      let score = 50;
-      if (m5Chg > 20) score += 30;
-      if (m5Vol > 100000) score += 25;
-      if (boost > 2000) score += 20;
-      if (m5.sells > m5.buys * 1.8) score -= 35;
-
-      score = Math.max(0, Math.min(100, score));
-
-      let label = 'Neutral', cls = 'sentiment-neutral';
-      if (score >= 70) { label = 'Bullish'; cls = 'sentiment-bull'; }
-      if (score <= 30) { label = 'Bearish'; cls = 'sentiment-bear'; }
-
-      return { label, score, cls };
     }
 
     function calculateScore(row) {
@@ -452,54 +325,62 @@
       const sells = row.m5sells || 0;
       const liqRatio = cleanNumber(row.liq) / cleanNumber(row.fdv);
       const boost = cleanNumber(row.boost);
-      const sentiment = row.sentimentScore / 100;
 
       const momentum = (m5Chg > 0 ? m5Chg : 0) * 0.35 + (m5Vol / 10000) * 0.25;
       const pressure = (buys / (sells + 1)) * 0.7;
       const safety = Math.min(liqRatio * 20, 1) * 0.4;
       const boostBonus = Math.min(boost / 1000, 3) * 0.3;
-      const socialBonus = sentiment * 0.8;
 
-      return momentum + pressure + safety + boostBonus + socialBonus;
+      return momentum + pressure + safety + boostBonus;
     }
+
+    // =============================================================================
+    // MAIN LOAD FUNCTION
+    // =============================================================================
 
     async function loadData(silent = false) {
       DOM.error.textContent = '';
-      DOM.status.textContent = walletAddress ? 'Scanning best tokens & balances...' : 'Scanning top boosted tokens...';
+      DOM.status.textContent = walletAddress ? 'Loading best tokens & balances...' : 'Loading boosted tokens...';
 
       try {
         const boosts = await fetchBoostedTokens();
+
         const rows = await Promise.all(
-          boosts.map(b => buildRow(await fetchPair(b.tokenAddress), b))
+          boosts.map(async b => buildRow(await fetchPair(b.tokenAddress), b))
         );
 
-        // Deduplicate by mint
+        // Deduplicate by mint address
         const seen = new Set();
-        const unique = rows.filter(r => r && !seen.has(r.mint) && (seen.add(r.mint), true));
+        const uniqueRows = rows.filter(r => r && !seen.has(r.mint) && (seen.add(r.mint), true));
 
-        // Score & sort descending, take top N
-        unique.sort((a, b) => b.score - a.score);
-        currentData = unique.slice(0, CONFIG.MAX_DISPLAY_TOKENS);
+        // Sort by score descending and take top N
+        uniqueRows.sort((a, b) => b.score - a.score);
+        currentData = uniqueRows.slice(0, CONFIG.MAX_DISPLAY_TOKENS);
 
         if (currentData.length === 0) {
-          DOM.status.textContent = 'No high-potential coins right now – retry soon';
+          DOM.status.textContent = 'No promising coins right now – retry in 1–2 min';
         } else {
-          DOM.status.textContent = `Showing top ${currentData.length} strongest coins (momentum + social)`;
+          DOM.status.textContent = `Showing top ${currentData.length} best coins`;
         }
 
         renderTable(currentData);
+
         DOM.lastUpdate.textContent = `Updated: ${new Date().toLocaleTimeString()} (auto 10s)`;
       } catch (err) {
         DOM.error.textContent = `Error: ${err.message}`;
       }
     }
 
+    // =============================================================================
+    // RENDER TABLE
+    // =============================================================================
+
     function renderTable(data) {
       DOM.tbody.innerHTML = '';
       let hasSound = false;
 
       if (data.length === 0) {
-        DOM.tbody.innerHTML = '<tr><td colspan="24" style="padding:2rem;color:#ffcc00;">No high-potential boosted tokens right now</td></tr>';
+        DOM.tbody.innerHTML = '<tr><td colspan="23" style="padding:2rem;color:#ffcc00;">No high-potential coins right now</td></tr>';
         return;
       }
 
@@ -521,7 +402,6 @@
           <td>${row.zone || '–'}</td>
           <td>${row.boost}</td>
           <td><span class="risk-badge ${row.riskClass}">${row.riskLevel} (${row.rugRisk}%)</span></td>
-          <td><span class="sentiment-badge ${row.sentimentClass}">${row.sentimentLabel} (${row.sentimentScore})</span></td>
           <td class="balance-cell">${row.balance > 0 ? row.balance : '0'}</td>
           <td class="value-cell">${row.valueUsd}</td>
           <td class="action-cell">
@@ -550,28 +430,31 @@
       if (hasSound) setTimeout(() => playSound(1400, 0.15), 400);
     }
 
+    // =============================================================================
+    // SORTING
+    // =============================================================================
+
     function getNumericValue(row, key) {
-      if (key === 'price')     return cleanNumber(row.price);
-      if (key === 'fdv')       return cleanNumber(row.fdv);
-      if (key === 'liq')       return cleanNumber(row.liq);
-      if (key.endsWith('vol')) return cleanNumber(row[key]);
-      if (key.endsWith('chg')) return cleanNumber(row[key]);
+      const clean = v => parseFloat(String(v).replace(/[^0-9.-]+/g,'')) || 0;
+      if (key === 'price') return clean(row.price);
+      if (key === 'fdv' || key === 'liq' || key.endsWith('vol')) return clean(row[key]);
+      if (key.endsWith('chg')) return clean(row[key]);
       if (key.endsWith('buys') || key.endsWith('sells')) return row[key] || 0;
-      if (key === 'age')       return parseInt(row.age) || 999999;
-      if (key === 'boost')     return parseInt(row.boost) || 0;
-      if (key === 'balance')   return parseFloat(row.balance) || 0;
-      if (key === 'valueUsd')  return cleanNumber(row.valueUsd);
+      if (key === 'age') return parseInt(row.age) || 999999;
+      if (key === 'boost') return parseInt(row.boost) || 0;
+      if (key === 'balance') return parseFloat(row.balance) || 0;
+      if (key === 'valueUsd') return clean(row.valueUsd);
       return 0;
     }
 
-    function handleSort(event) {
-      const th = event.target.closest('th.sortable');
+    function handleSort(e) {
+      const th = e.target.closest('th.sortable');
       if (!th) return;
 
       const key = th.dataset.key;
       const dir = th.classList.contains('asc') ? 'desc' : 'asc';
 
-      document.querySelectorAll('th.sortable').forEach(el => el.classList.remove('asc', 'desc'));
+      document.querySelectorAll('th.sortable').forEach(el => el.classList.remove('asc','desc'));
       th.classList.add(dir);
 
       currentData.sort((a, b) => {
@@ -594,8 +477,5 @@
     loadData();
     setInterval(() => loadData(true), CONFIG.REFRESH_INTERVAL);
   </script>
-
-  <!-- Solana web3.js -->
-  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
 </body>
 </html>
